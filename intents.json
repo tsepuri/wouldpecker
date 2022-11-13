@@ -1,0 +1,22 @@
+{"intents": [
+    {
+        "tag": "greetings",
+        "patterns": ["hello", "hey", "what's up?"]
+    },
+    {
+        "tag": "add_question",
+        "patterns": ["can i add a hobby", "what can i do to be better", "i need to do more"],
+        "responses": ["Adding a hobby is a great idea. What hobby do you want to add?"]
+    },
+    {
+        "tag": "add_full",
+        "patterns": ["can i add a hobby to read for five minutes every day", "can i add a hobby to bike for two hours a day", "can i add a habit to work out weekly",
+    "read for five minutes", "bike for ten minutes"],
+        "responses": {"VB": 1, "VB": 2, }
+    },
+    {
+        "tag": "remove_question",
+        "patterns": ["i am doing too much", "i want to remove a hobby", "too many hobbies"],
+        "responses": ["It's okay to take a break. What hobby do you want to remove"]
+    }
+]}

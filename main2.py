@@ -3,72 +3,104 @@ from typing import *
 from dataclasses import dataclass, field
 from datetime import datetime
 from asyncio import get_event_loop, Future, ensure_future
-from twilio.rest import Client
+import random
+from time import sleep
+from threading import Thread
 
-loop = get_event_loop()
-users: Dict[str, User] = {}
+if TYPE_CHECKING:
+    from receiver import User
 
 
-@dataclass
-class User:
-	number: str
-
-	pending_input: Optional[Future] = None
-
-	async def send(self, text: str) -> None:
-		twilio.send_sms(self.number, text)
-
-	async def input(self) -> str:
-		self.pending_input = loop.create_future()
-		return await self.pending_input
-
-	async def prompt(self, text: str) -> str:
-		self.send(text)
-		return await self.input()
-
-# Switchable
 @dataclass
 class Habit:
-	id: int
-	name: str
-	interval: int
+    id: int
+    name: str
+    interval: Optional[int] = None
+
+
+def _call_later(seconds: float, func: Callable, *args, **kwargs):
+    sleep(seconds)
+    func(*args, **kwargs)
+
 
 def call_later(seconds: float, func: Callable, *args, **kwargs):
-	return loop.call_later(seconds, ensure_future, func(*args, **kwargs))
+    # get_event_loop().call_later(seconds, ensure_future, func(*args, **kwargs))
+    Thread(target=_call_later, args=[
+           seconds, func, * args], kwargs=kwargs).start()
 
-async def peck(user: User, habit: Habit):
-	pass
 
-async def woodpecker(user: User, body: str):
-	name = await user.prompt("What is your name?")
-	habits = [Habit]
+def peck_once(user: User, habit: Habit):
+    user.send(f"Reminder: {habit.name}")
 
-	call_later(10, peck, user, habit)
 
-	while True:
-		msg = await user.input()
+def peck_multiple(user: User, habit: Habit):
+    peck_once(user, habit)
+    call_later(habit.interval, peck_multiple, user, habit)
 
-		if msg == 'help':
-			await user.send("What can I do for you? ") # TODO
-		elif msg == 'add':
-			habit_toadd = await user.prompt("What would you like me to remind you to do?")
-			reminder_type = await user.prompt("How would you like to receive reminders? Type 'one-time' or 'reccuring")
-		if reminder_type == 'one-time':
-					
-				elif reminder_type == 'reccuring':
 
-				else:
-					user.send("That's not a reminder type! ")
-					user.prompt("What would you like me to remind you to do?")
-		elif msg == 'habits':
-			await user.send()
-		elif msg == 'delete':
-			await user.send("Not yet implemented.")
-		elif msg == 'update':
-			await user.send("Not yet implemented.") # TODO
-		else:
-			await user.send("Unknown command!")
-		
-		  
-	
-	
+def woodpecker(user: User):
+    name = yield "What is your name?"
+    habits = [Habit]
+    user_id = random.randrange(100000)
+    # call_later(10, peck, user, habit)
+
+    while True:
+        msg = yield
+
+        if msg == 'help':
+            # TODO
+            user.send(
+                "what can i do for you? if you text 'add', we can add a new habit for you! Say 'delete' if you want to delete one of your habits!")
+        elif msg == 'add':
+            new_habit = yield "what habit would you like to add?"
+            if new_habit in habits:
+                user.send(
+                    "looks like i already have that habit stored. to check which habits you have stored so far, text me 'habits'!")
+            reminder_type = yield "how would you like to receive reminders? text me 'one-time' or 'recurring'."
+
+            if reminder_type == 'one-time':
+                time_str = yield "in how many seconds should i remind you?"
+                time = int(time_str)
+                habit = Habit(user_id, new_habit)
+                habits.append(habit)
+                user.send("okee, i'll remind you in " + time + " seconds!")
+                call_later(time, peck_once, user, habit)
+
+            elif reminder_type == 'recurring':
+                interval_str = yield "how long should we wait between each reminder (in seconds)?"
+                interval = int(interval_str)
+                habit = Habit(user_id, new_habit, interval)
+                habits.append(habit)
+                call_later(interval, peck_multiple, user, habit)
+                user.send(
+                    f"okee, i'll remind you every {interval} seconds, starting in {interval} seconds from now!")
+            else:
+                user.send(
+                    "that's not a reminder type, silly! if you still want to add something type 'add' again!")
+        elif msg == 'habits':
+            user.send("here are your habits:")
+            for habit in habits:
+                habList = ''
+                for habit in habits:
+                    habList += "habit: " + habit.name + " | interval: " + habit.interval + "\n"
+                user.send(habList)
+        elif msg == 'delete':
+            user.send("here are your current habits:")
+            for habit in habits:
+                habList = ''
+                for habit in habits:
+                    habList += "habit: " + habit.name + " | interval: " + habit.interval + "\n"
+                user.send(habList)
+            habit_todelete = yield "which habit would you like to delete?"
+            for habit in habits:
+                if habit.name == habit_todelete:
+                    habits.remove(habit)
+                    user.send("i deleted " + habit.name + " !")
+                else:
+                    user.send(
+                        "hmm... it seems like that's not one of your habits. text 'delete' to remove a habit!")
+            user.send("not yet implemented.")
+        elif msg == 'update':
+            user.send("not yet implemented.")  # TODO
+        else:
+            user.send("unknown command :( try again!")
