@@ -1,5 +1,6 @@
 {
 	"twilio_account_sid": "",
 	"twilio_auth_token": "",
-	"twilio_from_number": ""
+	"twilio_from_number": "",
+	"open_ai_api_key": ""
 }
