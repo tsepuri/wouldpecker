@@ -114,13 +114,13 @@ class User:
     generators: List[GeneratorEntry] = field(init=False, default_factory=list)
 
     def push_generator(self, generator: Generator[Optional[str], str, None], expires_at: Optional[datetime] = None, autocancel: bool = True):
-        # for entry in self.generators:
-        #     if entry.autocancel:
-        #         try:
-        #             entry.generator.throw(GeneratorAutocancellation())
-        #         except GeneratorAutocancellation:
-        #             pass
-        #         self.generators.remove(entry)
+        for entry in self.generators:
+            if entry.autocancel:
+                try:
+                    entry.generator.throw(GeneratorAutocancellation())
+                except GeneratorAutocancellation:
+                    pass
+                self.generators.remove(entry)
 
         self.generators.append(GeneratorEntry(
             generator=generator,
@@ -131,6 +131,7 @@ class User:
         self.step(None)  # must do this to initialize generator
 
     def schedule_generator(self, seconds: float, generator: Generator[Optional[str], str, None], expires_at: Optional[datetime] = None, expires_in: Optional[float] = None, autocancel: bool = True):
+        assert seconds is not None
         # assert expires_at is None or expires_in is None, "can't have expires at and expires in"
         # if expires_in is not None:
         #     expires_at = datetime.now() + timedelta(seconds=expires_in)
@@ -143,7 +144,7 @@ class User:
 
     def send(self, text: str) -> None:
         if self.is_stub:
-            stub_messages.append("Woodpecker: " + text)
+            stub_messages.append("Wouldpecker: " + text)
             return
 
         twilio_client.messages.create(
@@ -200,19 +201,19 @@ def home():
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Woodpecker</title>
+    <title>Wouldpecker</title>
 </head>
 <body>
-    <h1>Woodpecker</h1>
-    <pre disabled style="width: 95vw; height: 80vh; overflow-x: wrap; overflow-y: scroll; border: 1px solid black; padding: 5px;" id="messages">
+    <h1>Wouldpecker</h1>
+    <pre disabled style="width: 95vw; height: 80vh; overflow-x: wrap; border: 1px solid black; padding: 5px;" id="messages">
     {get_messages}
     </pre>
     <form action="/send-message" method="POST">
-        <input type="text" id="text" name="text" placeholder="Talk to Woodpecker" style="width: 80vw"/>
+        <input type="text" id="text" name="text" placeholder="Talk to Wouldpecker" style="width: 80vw"/>
         <input type="submit" value="Send"/>
     </form>
     <script type="text/javascript">
-    setInterval(() => fetch('/messages').then(res => res.text()).then((msgs) => document.getElementById('messages').innerText = msgs), 1);
+    setInterval(() => fetch('/messages').then(res => res.text()).then((msgs) => document.getElementById('messages').innerText = msgs), 100);
     document.getElementById('text').focus();
     </script>
 </body>
@@ -221,24 +222,30 @@ def home():
 
 @app.route('/send-message', methods=['POST'])
 def send_message():
-    text = request.values.get('text', None)
-    if text is None:
+    text_raw = request.values.get('text', None)
+    if text_raw is None:
         return 'Must have text!', 400
 
-    stub_messages.append("You: " + text)
+    multimessage = ';' in text_raw
 
-    user = User.get('stub')
-    if len(text.split()) <= 2:
-        user.step([text.lower()])
-    else:
-        keywords = response(f"Extract keywords from this text:\n{text}")
-        keywords = keywords.choices[0].text
-        if "\n" in keywords:
-            keywords = (keywords[keywords.rindex("\n")+1:]).split(',')
-            keywords = [keyword.lower() for keyword in keywords]
-        if "add" in text.lower():
-            keywords.append("add")
-        user.step(keywords)
+    for text in text_raw.split(';'):
+        text = text.strip()
+        stub_messages.append("You: " + text)
+
+        user = User.get('stub')
+        if len(text.split()) <= 2 or multimessage:
+            user.step(text.lower())
+        else:
+            keywords = response(f"Extract keywords from this text:\n{text}")
+            keywords = keywords.choices[0].text
+            if "\n" in keywords:
+                keywords = (keywords[keywords.rindex("\n")+1:]).split(',')
+                keywords = [keyword.lower() for keyword in keywords]
+            if "add" in text.lower():
+                keywords.append("add")
+            elif "delete" or 'remove' in text.lower():
+                keywords.append("delete")
+            user.step(' '.join(keywords))
 
     return redirect('/')
 
@@ -258,7 +265,7 @@ def on_sms():
     user = User.get(number)
     text = body
     if len(text.split()) <= 2:
-        user.step([text.lower()])
+        user.step(text.lower())
     else:
         keywords = response(f"Extract keywords from this text:\n{text}")
         keywords = keywords.choices[0].text
@@ -267,7 +274,9 @@ def on_sms():
             keywords = [keyword.lower() for keyword in keywords]
         if "add" in text.lower():
             keywords.append("add")
-        user.step(keywords)
+        elif "delete" or 'remove' in text.lower():
+            keywords.append("delete")
+        user.step(' '.join(keywords))
 
     return ''
 
