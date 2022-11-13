@@ -256,8 +256,18 @@ def on_sms():
         return ''
 
     user = User.get(number)
-
-    user.step(body)
+    text = body
+    if len(text.split()) <= 2:
+        user.step([text.lower()])
+    else:
+        keywords = response(f"Extract keywords from this text:\n{text}")
+        keywords = keywords.choices[0].text
+        if "\n" in keywords:
+            keywords = (keywords[keywords.rindex("\n")+1:]).split(',')
+            keywords = [keyword.lower() for keyword in keywords]
+        if "add" in text.lower():
+            keywords.append("add")
+        user.step(keywords)
 
     return ''
 
