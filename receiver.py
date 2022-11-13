@@ -8,11 +8,12 @@ from collections import namedtuple
 from asyncio import get_event_loop, Future, ensure_future, new_event_loop, set_event_loop
 from twilio.rest import Client
 from enum import Enum
-# import openai
+import openai
 from flask import Flask, request, redirect
 from main2 import woodpecker
 from time import sleep
 from threading import Thread
+
 
 def _call_later(seconds: float, func: Callable, *args, **kwargs):
     sleep(seconds)
@@ -50,13 +51,15 @@ with open('creds.json', 'r') as f:
     TWILIO_ACCOUNT_SID = get_cred('twilio_account_sid')
     TWILIO_AUTH_TOKEN = get_cred('twilio_auth_token')
     FROM_NUMBER = get_cred('twilio_from_number')
-    # openai.api_key = get_cred('open_ai_api_key')
+    openai.api_key = get_cred('open_ai_api_key')
 
 
 app = Flask(__name__)
 loop = get_event_loop()
 twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-response = lambda prompt : openai.Completion.create(
+
+
+def response(prompt): return openai.Completion.create(
     engine="text-davinci-002",
     prompt=prompt,
     temperature=0.7,
@@ -64,7 +67,9 @@ response = lambda prompt : openai.Completion.create(
     top_p=1,
     frequency_penalty=0,
     presence_penalty=0
-  )
+)
+
+
 stub_messages = []
 
 
@@ -74,16 +79,20 @@ stub_messages = []
 
 _USER_MAP = {}
 
+
 class GeneratorEntry(NamedTuple):
     generator: Generator[Optional[str], str, None]
     expires_at: Optional[datetime]
     autocancel: bool
 
+
 class GeneratorExpiration(Exception):
     """ Throw into a generator when it expires. """
 
+
 class GeneratorAutocancellation(GeneratorExpiration):
     """ Thrown into a generator when a autocancel=True. """
+
 
 @dataclass
 class User:
@@ -97,7 +106,8 @@ class User:
         assert self.number not in _USER_MAP, "duplicate user!"
         print(f"Created user: {self.number}")
         _USER_MAP[self.number] = self
-        self.push_generator(woodpecker(self), expires_at=None, autocancel=False)
+        self.push_generator(woodpecker(
+            self), expires_at=None, autocancel=False)
 
     number: str
 
@@ -118,14 +128,14 @@ class User:
             autocancel=autocancel
         ))
 
-        self.step(None) # must do this to initialize generator
+        self.step(None)  # must do this to initialize generator
 
     def schedule_generator(self, seconds: float, generator: Generator[Optional[str], str, None], expires_at: Optional[datetime] = None, expires_in: Optional[float] = None, autocancel: bool = True):
-        assert expires_at is None or expires_in is None, "can't have expires at and expires in"
-        if expires_in is not None:
-            expires_at = datetime.now() + timedelta(seconds=expires_in)
-        call_later(seconds, self.push_generator, generator=generator, expires_at=expires_at, autocancel=autocancel)
-        
+        # assert expires_at is None or expires_in is None, "can't have expires at and expires in"
+        # if expires_in is not None:
+        #     expires_at = datetime.now() + timedelta(seconds=expires_in)
+        call_later(seconds, self.push_generator, generator=generator,
+                   expires_at=expires_at, autocancel=autocancel)
 
     @property
     def is_stub(self) -> bool:
@@ -143,12 +153,12 @@ class User:
         )
 
     def step(self, text: str):
-        while self.generators[-1].expires_at is not None and self.generators[-1].expires_at <= datetime.now():
-            try:
-                self.generators[-1].generator.throw(GeneratorExpiration())
-            except GeneratorExpiration:
-                pass
-            self.generators.pop()
+        # while self.generators[-1].expires_at is not None and self.generators[-1].expires_at <= datetime.now():
+        #     try:
+        #         self.generators[-1].generator.throw(GeneratorExpiration())
+        #     except GeneratorExpiration:
+        #         pass
+        #     self.generators.pop()
 
         if len(self.generators) == 0:
             print(f"{self.number}: No generators!")
@@ -160,11 +170,13 @@ class User:
             msg = self.generators[-1].generator.send(text)
         except StopIteration:
             if len(self.generators) >= 2:
-                print(f"Generator {self.generators[-1]} exited for: {self.number}, this is OK because we have multiple on the stack.")
+                print(
+                    f"Generator {self.generators[-1]} exited for: {self.number}, this is OK because we have multiple on the stack.")
                 self.generators.pop()
                 return
-            
-            print(f"Generator {self.generators[-1]} exited for: {self.number}, but the stack is now empty!")
+
+            print(
+                f"Generator {self.generators[-1]} exited for: {self.number}, but the stack is now empty!")
             self.send('Error! Please restart.')
             _USER_MAP[self.number] = None
             return
@@ -251,4 +263,4 @@ def on_sms():
 
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(debug=True)
