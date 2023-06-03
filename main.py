@@ -76,9 +76,6 @@ class Event:
 class TwilioManager:
 	# Find your Account SID and Auth Token at twilio.com/console
 	# and set the environment variables. See http://twil.io/secure
-	TWILIO_ACCOUNT_SID = "AC7a632b4c9ce024b6428187f6b5fa2e5d" # TODO: Move to ENV VAR:  os.environ['TWILIO_TWILIO_ACCOUNT_SID']
-	TWILIO_AUTH_TOKEN = "9cca78cfa1c970d4eda89ea197cc1015" # TODO: Move to ENV VAR: os.environ['TWILIO_TWILIO_AUTH_TOKEN']
-	FROM_NUMBER = "+19135134160"
 
 	client: Client
 
